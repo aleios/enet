@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 3.4.3)
 
 project(enet)
 
@@ -89,6 +89,33 @@ add_library(enet STATIC
     ${SOURCE_FILES}
 )
 
+target_include_directories(
+    enet PUBLIC 
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+
 if (MINGW)
     target_link_libraries(enet winmm ws2_32)
 endif()
+
+# Install Target
+install(
+    TARGETS enet
+    EXPORT enetTargets
+    RUNTIME DESTINATION bin
+    ARCHIVE DESTINATION lib/static
+    LIBRARY DESTINATION lib
+)
+
+install(
+    EXPORT enetTargets
+    FILE enetTargets.cmake
+    NAMESPACE enet::
+    DESTINATION lib/cmake/enet
+)
+
+install(
+    FILES "${CMAKE_CURRENT_BINARY_DIR}/enetConfig.cmake"
+    DESTINATION lib/cmake/enet
+)
