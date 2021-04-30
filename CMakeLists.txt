@@ -17,6 +17,11 @@ check_function_exists("inet_ntop" HAS_INET_NTOP)
 check_struct_has_member("struct msghdr" "msg_flags" "sys/types.h;sys/socket.h" HAS_MSGHDR_FLAGS)
 set(CMAKE_EXTRA_INCLUDE_FILES "sys/types.h" "sys/socket.h")
 check_type_size("socklen_t" HAS_SOCKLEN_T BUILTIN_TYPES_ONLY)
+
+# Options
+option(enet_BUILD_SHARED "Build shared library" OFF)
+option(enet_BUILD_STATIC "Build static library" ON)
+
 unset(CMAKE_EXTRA_INCLUDE_FILES)
 if(MSVC)
 	add_definitions(-W3)
@@ -55,8 +60,6 @@ if(HAS_SOCKLEN_T)
     add_definitions(-DHAS_SOCKLEN_T=1)
 endif()
 
-include_directories(${PROJECT_SOURCE_DIR}/include)
-
 set(INCLUDE_FILES_PREFIX include/enet)
 set(INCLUDE_FILES
     ${INCLUDE_FILES_PREFIX}/callbacks.h
@@ -84,29 +87,70 @@ set(SOURCE_FILES
 source_group(include FILES ${INCLUDE_FILES})
 source_group(source FILES ${SOURCE_FILES})
 
-add_library(enet STATIC
-    ${INCLUDE_FILES}
-    ${SOURCE_FILES}
-)
+if(enet_BUILD_SHARED)
+    add_library(
+        enet SHARED
+        ${INCLUDE_FILES}
+        ${SOURCE_FILES}
+    )
+    target_compile_definitions(enet PUBLIC ENET_DLL PRIVATE ENET_BUILDING_LIB)
+    set_property(TARGET enet PROPERTY POSITION_INDEPENDENT_CODE ON)
 
-target_include_directories(
-    enet PUBLIC 
-    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-    $<INSTALL_INTERFACE:include>
-)
+    target_include_directories(
+        enet PUBLIC 
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+    )
 
-if (MINGW)
-    target_link_libraries(enet winmm ws2_32)
+
+    if (MINGW)
+        target_link_libraries(enet winmm ws2_32)
+    endif()
+
+    set_target_properties(enet PROPERTIES PUBLIC_HEADER "${INCLUDE_FILES}")
+endif()
+
+if(enet_BUILD_STATIC)
+    add_library(
+        enet-static STATIC
+        ${INCLUDE_FILES}
+        ${SOURCE_FILES}
+    )
+    target_include_directories(
+        enet-static PUBLIC 
+        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+        $<INSTALL_INTERFACE:include>
+    )
+
+    if (MINGW)
+        target_link_libraries(enet-static winmm ws2_32)
+    endif()
+
+    set_target_properties(enet-static PROPERTIES PUBLIC_HEADER "${INCLUDE_FILES}")
 endif()
 
 # Install Target
-install(
-    TARGETS enet
-    EXPORT enetTargets
-    RUNTIME DESTINATION bin
-    ARCHIVE DESTINATION lib/static
-    LIBRARY DESTINATION lib
-)
+if(enet_BUILD_STATIC)
+    install(
+        TARGETS enet-static
+        EXPORT enetTargets
+        RUNTIME DESTINATION bin
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        PUBLIC_HEADER DESTINATION include/enet
+    )
+endif()
+
+if(enet_BUILD_SHARED)
+    install(
+        TARGETS enet
+        EXPORT enetTargets
+        RUNTIME DESTINATION bin
+        ARCHIVE DESTINATION lib
+        LIBRARY DESTINATION lib
+        PUBLIC_HEADER DESTINATION include/enet
+    )
+endif()
 
 install(
     EXPORT enetTargets
@@ -116,6 +160,6 @@ install(
 )
 
 install(
-    FILES "${CMAKE_CURRENT_BINARY_DIR}/enetConfig.cmake"
+    FILES "${CMAKE_CURRENT_SOURCE_DIR}/enetConfig.cmake"
     DESTINATION lib/cmake/enet
 )
